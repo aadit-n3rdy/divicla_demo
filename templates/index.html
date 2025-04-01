@@ -1,197 +1,373 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CPU Utilization</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.3.2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon@1.27.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
-
-    <style>
-        .buttonEnabled {
-            background-color: #4CAF50;
-            color: white;
-        }
-        .buttonDisabled {
-            background-color: #f44336;
-            color: white;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPU Utilization Dashboard - Edge Intelligence</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Socket.IO Library -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <!-- Chart.js and related libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.3.2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@1.27.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
+  <style>
+    :root {
+      --primary-color: #212529;
+      --secondary-color: #495057;
+      --accent-color: #b71152;
+      --accent-light: #e83e8c;
+      --accent-lighter: #f8d7e3;
+      --text-color: #f8f9fa;
+      --bg-color: #f8f9fa;
+    }
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background-color: var(--bg-color);
+    }
+    .font-oswald { font-family: 'Oswald', sans-serif; }
+    .font-montserrat { font-family: 'Montserrat', sans-serif; }
+    .navbar { background-color: var(--primary-color) !important; }
+    .welcome-section {
+      background-color: var(--primary-color);
+      color: var(--text-color);
+      padding: 4rem 0;
+      margin-bottom: 3rem;
+      position: relative;
+    }
+    .welcome-section::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(to right, var(--accent-color), var(--accent-light));
+    }
+    .card {
+      border: none;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: transform 0.3s ease;
+      height: 100%;
+      border-top: 3px solid transparent;
+    }
+    .card:hover { transform: translateY(-5px); border-top: 3px solid var(--accent-color); }
+    .card-title { font-family: 'Oswald', sans-serif; color: var(--primary-color); }
+    .btn-accent { 
+      background-color: var(--accent-color); 
+      border-color: var(--accent-color); 
+      color: white; 
+    }
+    .btn-accent:hover { 
+      background-color: #95103f; 
+      border-color: #95103f; 
+      color: white; 
+    }
+    .btn-dark {
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
+      color: white;
+    }
+    .btn-dark:hover {
+      background-color: var(--secondary-color);
+      border-color: var(--secondary-color);
+    }
+    footer {
+      background-color: var(--primary-color);
+      color: var(--text-color);
+      padding: 2rem 0;
+      margin-top: 3rem;
+      position: relative;
+    }
+    footer::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(to right, var(--accent-color), var(--accent-light));
+    }
+    .accent-text { color: var(--accent-color); }
+    .chart-container {
+      width: 100%;
+      height: 400px;
+      margin-bottom: 1.5rem;
+    }
+    .node-section {
+      padding: 2rem;
+    }
+    .buttonEnabled {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    .buttonEnabled:hover {
+      background-color: #95103f;
+    }
+    .buttonDisabled {
+      background-color: var(--secondary-color);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    .buttonDisabled:hover {
+      background-color: #343a40;
+    }
+  </style>
 </head>
-
 <body>
-    <h1>CPU Utilization</h1>
-
-    <div style="display: flex; flex-direction: row; height: 100vh;">
-        <div
-            style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px solid #ccc;">
-            <h2>Node 1</h2>
-            <div style="width: 500px; height: 500px;">
-                <canvas id="node1Chart" width="100" height="100"></canvas>
-            </div>
-            <div style="margin-top: 20px;">
-                <button id="node1Toggle" class="buttonEnabled" >Start/Stop</button>
-                <button id="node1BenchmarkToggle" class="buttonEnabled" >Start Benchmark/Stop Benchmark</button>
-            </div>
-        </div>
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <h2>Node 2</h2>
-            <div style="width: 500px; height: 500px;">
-                <canvas id="node2Chart" width="100" height="100"></canvas>
-            </div>
-            <div style="margin-top: 20px;">
-                <button id="node2Toggle" class="buttonEnabled" >Start/Stop</button>
-                <button id="node2BenchmarkToggle" class="buttonDisabled" >Start Benchmark/Stop Benchmark</button>
-            </div>
-        </div>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+    <div class="container">
+      <a class="navbar-brand font-oswald" href="#">EDGE INTELLIGENCE</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+      </div>
     </div>
+  </nav>
 
-    <script>
-        const node1Ctx = document.getElementById('node1Chart').getContext('2d');
-        const node2Ctx = document.getElementById('node2Chart').getContext('2d');
+  <!-- Welcome Section -->
+  <section class="welcome-section text-center">
+    <div class="container">
+      <h1 class="display-4 font-oswald mb-4">CPU <span class="accent-text">UTILIZATION</span> DASHBOARD</h1>
+      <p class="lead font-montserrat">Real-time monitoring of node performance metrics</p>
+    </div>
+  </section>
 
-        Chart.defaults.set({
-            'plugins.streaming': {
-                duration: 5000,
-            }
-        })
+  <!-- Main Content -->
+  <section class="py-5">
+    <div class="container">
+      <!-- Info Card -->
+      <div class="card p-4 mb-5">
+        <div class="card-body">
+          <h2 class="card-title mb-4">Node Performance Monitoring</h2>
+          <p class="lead">
+            Track real-time CPU utilization across multiple nodes with interactive controls for benchmarking and monitoring.
+          </p>
+        </div>
+      </div>
 
-        const node1Chart = new Chart(node1Ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Node 1 CPU Utilization (%)',
-                    data: [],
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 2,
-                    fill: false
-                }]
-            },
-            options: {
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Time'
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'CPU (%)'
-                        }
+      <!-- Nodes Section -->
+      <div class="row">
+        <!-- Node 1 -->
+        <div class="col-md-6 mb-4">
+          <div class="card h-100">
+            <div class="card-body node-section">
+              <h2 class="card-title mb-4">Node 1</h2>
+              <div class="chart-container">
+                <canvas id="node1Chart"></canvas>
+              </div>
+              <div class="text-center mt-3">
+                <button id="node1Toggle" class="btn btn-accent me-2">Start/Stop</button>
+                <button id="node1BenchmarkToggle" class="btn btn-accent">Start/Stop Benchmark</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Node 2 -->
+        <div class="col-md-6 mb-4">
+          <div class="card h-100">
+            <div class="card-body node-section">
+              <h2 class="card-title mb-4">Node 2</h2>
+              <div class="chart-container">
+                <canvas id="node2Chart"></canvas>
+              </div>
+              <div class="text-center mt-3">
+                <button id="node2Toggle" class="btn btn-accent me-2">Start/Stop</button>
+                <button id="node2BenchmarkToggle" class="btn btn-accent">Start/Stop Benchmark</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="row">
+        <div class="col-md-6">
+          <h3 class="font-oswald">AN EDGE INTELLIGENT APPROACH</h3>
+          <p class="font-montserrat">To <span class="accent-text">Performance Monitoring</span></p>
+        </div>
+        <div class="col-md-6 text-md-end">
+          <p class="font-montserrat">© 2025 Edge Intelligence Team. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Chart & Socket.IO Script -->
+  <script>
+    const node1Ctx = document.getElementById('node1Chart').getContext('2d');
+    const node2Ctx = document.getElementById('node2Chart').getContext('2d');
+
+    Chart.defaults.set({
+        'plugins.streaming': {
+            duration: 5000,
+        }
+    });
+
+    const node1Chart = new Chart(node1Ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Node 1 CPU Utilization (%)',
+                data: [],
+                borderColor: 'rgba(183, 17, 82, 1)',
+                backgroundColor: 'rgba(183, 17, 82, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'CPU (%)'
                     }
                 }
-            }
-        });
-
-        const node2Chart = new Chart(node2Ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Node 2 CPU Utilization (%)',
-                    data: [],
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    borderWidth: 2,
-                    fill: false
-                }]
-            },
-            options: {
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Time'
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'CPU (%)'
-                        }
-                    }
-                }
-            }
-        });
-
-        const socket = io();
-
-        function toggleButton(buttonId, value) {
-            const button = document.getElementById(buttonId);
-            if (value) {
-                button.classList.remove('buttonDisabled');
-                button.classList.add('buttonEnabled');
-            } else {
-                button.classList.remove('buttonEnabled');
-                button.classList.add('buttonDisabled');
             }
         }
-        document.getElementById('node1Toggle').addEventListener('click', () => {
-            socket.emit('control', JSON.stringify({ cmd: 'START', node: 'node1' }));
-        });
+    });
 
-        document.getElementById('node2Toggle').addEventListener('click', () => {
-            socket.emit('control', JSON.stringify({ cmd: 'START', node: 'node2' }));
-        });
-
-        document.getElementById('node1BenchmarkToggle').addEventListener('click', () => {
-            socket.emit('control', JSON.stringify({ cmd: 'BENCHMARK', node: 'node1' }));
-        });
-
-        document.getElementById('node2BenchmarkToggle').addEventListener('click', () => {
-            socket.emit('control', JSON.stringify({ cmd: 'BENCHMARK', node: 'node2' }));
-        });
-
-
-        socket.on('cpu_update', (data) => {
-            data = JSON.parse(data)
-            console.log(data)
-
-            // Update button states based on data
-            toggleButton('node1Toggle', data.node1.alive);
-            toggleButton('node2Toggle', data.node2.alive);
-            toggleButton('node1BenchmarkToggle', data.node1.benchmark);
-            toggleButton('node2BenchmarkToggle', data.node2.benchmark);
-
-            const currentTime = new Date().toLocaleTimeString();
-
-            // Update Node 1 Chart
-            node1Chart.data.labels.push(currentTime);
-            node1Chart.data.datasets[0].data.push({
-                x: currentTime,
-                y: data.node1.util
-            })
-            if (node1Chart.data.labels.length > 15) {
-                console.log("LONG")
-                node1Chart.data.labels.shift();
-                node1Chart.data.datasets[0].data.shift();
+    const node2Chart = new Chart(node2Ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Node 2 CPU Utilization (%)',
+                data: [],
+                borderColor: 'rgba(73, 80, 87, 1)',
+                backgroundColor: 'rgba(73, 80, 87, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'CPU (%)'
+                    }
+                }
             }
-            node1Chart.update('quiet');
+        }
+    });
 
-            // Update Node 2 Chart
-            node2Chart.data.labels.push(currentTime);
-            node2Chart.data.datasets[0].data.push({
-                x: currentTime,
-                y: data.node2.util
-            });
-            if (node2Chart.data.labels.length > 15) {
-                console.log("LONG")
-                node2Chart.data.labels.shift();
-                node2Chart.data.datasets[0].data.shift();
-            }
-            node2Chart.update('quiet');
+    const socket = io();
+
+    function toggleButton(buttonId, value) {
+        const button = document.getElementById(buttonId);
+        if (value) {
+            button.classList.remove('buttonDisabled');
+            button.classList.add('buttonEnabled');
+            button.classList.remove('btn-dark');
+            button.classList.add('btn-accent');
+        } else {
+            button.classList.remove('buttonEnabled');
+            button.classList.add('buttonDisabled');
+            button.classList.remove('btn-accent');
+            button.classList.add('btn-dark');
+        }
+    }
+
+    document.getElementById('node1Toggle').addEventListener('click', () => {
+        socket.emit('control', JSON.stringify({ cmd: 'START', node: 'node1' }));
+    });
+
+    document.getElementById('node2Toggle').addEventListener('click', () => {
+        socket.emit('control', JSON.stringify({ cmd: 'START', node: 'node2' }));
+    });
+
+    document.getElementById('node1BenchmarkToggle').addEventListener('click', () => {
+        socket.emit('control', JSON.stringify({ cmd: 'BENCHMARK', node: 'node1' }));
+    });
+
+    document.getElementById('node2BenchmarkToggle').addEventListener('click', () => {
+        socket.emit('control', JSON.stringify({ cmd: 'BENCHMARK', node: 'node2' }));
+    });
+
+    socket.on('cpu_update', (data) => {
+        data = JSON.parse(data);
+        console.log(data);
+
+        // Update button states based on data
+        toggleButton('node1Toggle', data.node1.alive);
+        toggleButton('node2Toggle', data.node2.alive);
+        toggleButton('node1BenchmarkToggle', data.node1.benchmark);
+        toggleButton('node2BenchmarkToggle', data.node2.benchmark);
+
+        const currentTime = new Date().toLocaleTimeString();
+
+        // Update Node 1 Chart
+        node1Chart.data.labels.push(currentTime);
+        node1Chart.data.datasets[0].data.push({
+            x: currentTime,
+            y: data.node1.util
         });
-    </script>
+        if (node1Chart.data.labels.length > 15) {
+            node1Chart.data.labels.shift();
+            node1Chart.data.datasets[0].data.shift();
+        }
+        node1Chart.update('quiet');
+
+        // Update Node 2 Chart
+        node2Chart.data.labels.push(currentTime);
+        node2Chart.data.datasets[0].data.push({
+            x: currentTime,
+            y: data.node2.util
+        });
+        if (node2Chart.data.labels.length > 15) {
+            node2Chart.data.labels.shift();
+            node2Chart.data.datasets[0].data.shift();
+        }
+        node2Chart.update('quiet');
+    });
+  </script>
 </body>
-
 </html>
