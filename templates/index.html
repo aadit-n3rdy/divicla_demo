@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Utilization</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.3.2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@1.27.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
+
+    <style>
+        .buttonEnabled {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .buttonDisabled {
+            background-color: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>CPU Utilization</h1>
+
+    <div style="display: flex; flex-direction: row; height: 100vh;">
+        <div
+            style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px solid #ccc;">
+            <h2>Node 1</h2>
+            <div style="width: 500px; height: 500px;">
+                <canvas id="node1Chart" width="100" height="100"></canvas>
+            </div>
+            <div style="margin-top: 20px;">
+                <button id="node1Toggle" class="buttonEnabled" >Start/Stop</button>
+                <button id="node1BenchmarkToggle" class="buttonEnabled" >Start Benchmark/Stop Benchmark</button>
+            </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <h2>Node 2</h2>
+            <div style="width: 500px; height: 500px;">
+                <canvas id="node2Chart" width="100" height="100"></canvas>
+            </div>
+            <div style="margin-top: 20px;">
+                <button id="node2Toggle" class="buttonEnabled" >Start/Stop</button>
+                <button id="node2BenchmarkToggle" class="buttonDisabled" >Start Benchmark/Stop Benchmark</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const node1Ctx = document.getElementById('node1Chart').getContext('2d');
+        const node2Ctx = document.getElementById('node2Chart').getContext('2d');
+
+        Chart.defaults.set({
+            'plugins.streaming': {
+                duration: 5000,
+            }
+        })
+
+        const node1Chart = new Chart(node1Ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Node 1 CPU Utilization (%)',
+                    data: [],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'CPU (%)'
+                        }
+                    }
+                }
+            }
+        });
+
+        const node2Chart = new Chart(node2Ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Node 2 CPU Utilization (%)',
+                    data: [],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'CPU (%)'
+                        }
+                    }
+                }
+            }
+        });
+
+        const socket = io();
+
+        function toggleButton(buttonId, value) {
+            const button = document.getElementById(buttonId);
+            if (value) {
+                button.classList.remove('buttonDisabled');
+                button.classList.add('buttonEnabled');
+            } else {
+                button.classList.remove('buttonEnabled');
+                button.classList.add('buttonDisabled');
+            }
+        }
+        document.getElementById('node1Toggle').addEventListener('click', () => {
+            socket.emit('control', JSON.stringify({ cmd: 'START', node: 'node1' }));
+        });
+
+        document.getElementById('node2Toggle').addEventListener('click', () => {
+            socket.emit('control', JSON.stringify({ cmd: 'START', node: 'node2' }));
+        });
+
+        document.getElementById('node1BenchmarkToggle').addEventListener('click', () => {
+            socket.emit('control', JSON.stringify({ cmd: 'BENCHMARK', node: 'node1' }));
+        });
+
+        document.getElementById('node2BenchmarkToggle').addEventListener('click', () => {
+            socket.emit('control', JSON.stringify({ cmd: 'BENCHMARK', node: 'node2' }));
+        });
+
+
+        socket.on('cpu_update', (data) => {
+            data = JSON.parse(data)
+            console.log(data)
+
+            // Update button states based on data
+            toggleButton('node1Toggle', data.node1.alive);
+            toggleButton('node2Toggle', data.node2.alive);
+            toggleButton('node1BenchmarkToggle', data.node1.benchmark);
+            toggleButton('node2BenchmarkToggle', data.node2.benchmark);
+
+            const currentTime = new Date().toLocaleTimeString();
+
+            // Update Node 1 Chart
+            node1Chart.data.labels.push(currentTime);
+            node1Chart.data.datasets[0].data.push({
+                x: currentTime,
+                y: data.node1.util
+            })
+            if (node1Chart.data.labels.length > 15) {
+                console.log("LONG")
+                node1Chart.data.labels.shift();
+                node1Chart.data.datasets[0].data.shift();
+            }
+            node1Chart.update('quiet');
+
+            // Update Node 2 Chart
+            node2Chart.data.labels.push(currentTime);
+            node2Chart.data.datasets[0].data.push({
+                x: currentTime,
+                y: data.node2.util
+            });
+            if (node2Chart.data.labels.length > 15) {
+                console.log("LONG")
+                node2Chart.data.labels.shift();
+                node2Chart.data.datasets[0].data.shift();
+            }
+            node2Chart.update('quiet');
+        });
+    </script>
+</body>
+
+</html>
